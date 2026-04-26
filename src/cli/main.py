@@ -4,7 +4,7 @@ from pathlib import Path
 from src.backend.core.agent import FoldyAgent
 from langchain_core.messages import HumanMessage
 from src.cli.display import ConsoleDisplay 
-
+from loguru import logger
 app = typer.Typer(help="Foldy AI: Your local filesystem manager.")
 display = ConsoleDisplay()
 
@@ -25,7 +25,7 @@ def do(instruction: str):
 
         async for event in agent.graph.astream_events(inputs, version="v2"):
             kind = event["event"]
-            
+            # logger.info(f"current event: {event}")
             if kind == "on_chat_model_stream":
                 display.stream_token(event["data"]["chunk"].content)
             

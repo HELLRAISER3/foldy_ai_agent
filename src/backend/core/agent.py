@@ -1,7 +1,7 @@
 from typing import TypedDict, Sequence, Annotated
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnableConfig
 
@@ -26,11 +26,14 @@ class AgentState(TypedDict):
 
 class FoldyAgent():
     def __init__(self):
+        self.tools = tools
+
         self.llm = ChatOpenAI(
             base_url="http://localhost:8000/v1",
             api_key="not-needed",
             temperature= 0,
-            streaming=True
+            streaming=True,
+            name = "phi-4"
         )
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", read_yaml(SYSTEM_PROMPT_PATH)["system_prompt"]),
@@ -41,26 +44,28 @@ class FoldyAgent():
                 "messages": lambda x: x["messages"]
             }
             | self.prompt
-            | self.llm.bind_tools(tools=tools, tool_choice = "auto")
+            | self.llm.bind_tools(tools=self.tools, tool_choice = "required") # tool_choice = "required"
         )
         self.graph = self._compose_graph()
 
     async def _call_model(self, state: AgentState, config: RunnableConfig) -> dict:
         """Node that invokes the agent asynchronously."""
-        response = self.chain.ainvoke({"messages": state["messages"]}, config)
+        response = await self.chain.ainvoke({"messages": state["messages"]}, config)
+        
         return {"messages": [response]}
 
     def _should_continue(self, state: AgentState):
         last_message = state["messages"][-1]
+        logger.info(f"last_message: {last_message}")
         if not last_message.tool_calls:
             return END
         return "tools"
-
+    
     def _compose_graph(self):
         graph = StateGraph(AgentState)
 
         graph.add_node("call_model", self._call_model)
-        graph.add_node("tools", ToolNode(tools))
+        graph.add_node("tools", ToolNode(self.tools))
 
         graph.set_entry_point("call_model")
 
@@ -72,3 +77,5 @@ class FoldyAgent():
         graph.add_edge("tools", "call_model")
 
         return graph.compile()
+
+
