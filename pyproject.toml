@@ -19,3 +19,5 @@ dependencies = [
     "typer>=0.25.0",
     "uvicorn>=0.46.0",
 ]
+[project.scripts]
+foldy = "src.cli.main:app"

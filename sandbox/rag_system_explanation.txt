@@ -1,0 +1,1 @@
+A RAG system in ML stands for Retrieval-Augmented Generation. It combines the power of retrieval-based and generation models to enhance machine learning applications.

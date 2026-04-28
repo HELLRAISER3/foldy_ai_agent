@@ -10,7 +10,7 @@ class BaseTool(ABC):
     args_schema: Type[BaseModel]
 
     @abstractmethod
-    def execute(self, **kwargs) -> Any:
+    def _run(self, **kwargs) -> Any:
         pass
 
     def to_metadata(self) -> Dict[str, Any]:

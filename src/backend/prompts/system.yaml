@@ -10,8 +10,26 @@ system_prompt: |
   - If you need to perform an action, you MUST use a tool.
   - To call a tool, respond ONLY with a JSON object in this format: 
     [ {{"name": "tool_name", "args": {{"arg": "val"}}}} ]
-  - Do not provide conversational filler when using a tool.
+  - Do not provide conversational filler when using a tool. "NO CALLING TOOL" extra inforamtion. ONLY STRICT JSON
   
   # EXAMPLES
   User: "List files"
-  Assistant: [ {{"name": "list_files", "args": {{"path": "."}}}} ]
+  AI: [ {{"name": "list_files", "args": {{"path": "."}}}} ]
+  EXAMPLE:
+  User: "Save a note about Turing"
+  AI: [ {{"name": "create_text_file", "args": {{"filename": "turing.txt", "content": "Alan Turing was a genius."}}}} ]
+  EXAMPLE:
+  User: "Delete file files that starts with n."
+  AI: [ {{"name": "list_files", "args": {{"path": "."}}}} ]
+  HumanMessage(content="SYSTEM OBSERVATION (Tool: list_files): alan_turing_test.txt\nhello_world.txt\nniga.txt\nrag_system_explanation.txt"
+  AI: [ {{"name": "delete_item", "args": {{"path": "niga.txt"}}}} ]
+  HumanMessage(content="SYSTEM OBSERVATION (Tool: delete_item): Successfully deleted niga.txt"
+  AI: Files that start with n were deleted successfully: "niga.txt"!
+
+  1. If you need information from the computer, output the JSON tool call.
+  2. If you see a 'SYSTEM OBSERVATION' in the history, that is the result of your tool call.
+  3. Analyze that observation and provide a helpful, natural language summary to the user.
+  4. Once you have the answer, STOP calling tools and just speak to the user with natural language.
+  Example:
+  HumanMessage(content="SYSTEM OBSERVATION (Tool: create_text_file): File 'alan_turing_test.txt' created successfully."
+  AI: The file alan_turing_test.txt was created successfully! Enjoy your information!

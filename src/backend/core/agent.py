@@ -1,7 +1,7 @@
 from typing import TypedDict, Sequence, Annotated
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnableConfig
 
@@ -18,7 +18,8 @@ from src.backend.utils.common import read_yaml
 from src.backend.entities import *
 
 import asyncio
-
+import json
+import re
 
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
@@ -44,19 +45,57 @@ class FoldyAgent():
                 "messages": lambda x: x["messages"]
             }
             | self.prompt
-            | self.llm.bind_tools(tools=self.tools, tool_choice = "required") # tool_choice = "required"
+            | self.llm.bind_tools(tools=self.tools, tool_choice = "auto") # tool_choice = "required"
         )
         self.graph = self._compose_graph()
 
     async def _call_model(self, state: AgentState, config: RunnableConfig) -> dict:
-        """Node that invokes the agent asynchronously."""
-        response = await self.chain.ainvoke({"messages": state["messages"]}, config)
+        """Node that invokes the agent and handles hallucinated tool calls."""
+    
+        messages_for_llm = []
+        for msg in state["messages"]:
+            if isinstance(msg, ToolMessage):
+                # We relabel the tool output so the model sees it clearly
+                messages_for_llm.append(HumanMessage(
+                    content=f"SYSTEM OBSERVATION (Tool: {msg.name}): {msg.content}"
+                ))
+            else:
+                messages_for_llm.append(msg)
+        # logger.info(f"messages_for_llm: {messages_for_llm}")
+
+        response = await self.chain.ainvoke({"messages": messages_for_llm}, config)
         
+        if not response.tool_calls:
+            content = response.content.strip()
+
+            content = content.replace("```json", "").replace("```", "")
+
+            match = re.search(r'(\[\s*\{.*\}\s*\])', content, re.DOTALL)
+
+            if match:
+                json_str = match.group(1)
+
+                try:
+                    parsed_calls = json.loads(json_str)
+
+                    if isinstance(parsed_calls, list):
+                        response.tool_calls = [
+                            {
+                                "name": call.get("name"),
+                                "args": call.get("args") or call.get("arguments") or {},
+                                "id": f"call_{i}",
+                                "type": "tool_call"
+                            }
+                            for i, call in enumerate(parsed_calls)
+                        ]
+
+                except Exception as e:
+                    logger.debug(f"JSON extraction failed: {e}")
+
         return {"messages": [response]}
 
     def _should_continue(self, state: AgentState):
         last_message = state["messages"][-1]
-        logger.info(f"last_message: {last_message}")
         if not last_message.tool_calls:
             return END
         return "tools"

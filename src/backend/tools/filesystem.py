@@ -1,7 +1,6 @@
 import os
 import shutil
 from pathlib import Path
-from typing import List, Any
 from pydantic import BaseModel, Field
 from .base import BaseTool
 
@@ -13,14 +12,18 @@ class FileSystemManager:
             self.root.mkdir(parents=True)
 
     def safe_path(self, user_path: str) -> Path:
-        target = (self.root / user_path).resolve()
+        # If user_path is empty/None, default to "." to avoid crashes
+        clean_path = user_path if user_path else "."
+        target = (self.root / clean_path).resolve()
+        
         if not target.is_relative_to(self.root):
             raise PermissionError(f"Access Denied: Path '{user_path}' is outside the sandbox!")
         return target
 
 
 class ListFilesArgs(BaseModel):
-    path: str = Field(description="The directory path to list, relative to the root.")
+    path: str = Field(default=".", description="Relative path to list.")
+
 
 class ListFilesTool(BaseTool):
     name = "list_files"
@@ -28,10 +31,14 @@ class ListFilesTool(BaseTool):
     args_schema = ListFilesArgs
 
     def __init__(self, manager: FileSystemManager):
+        super().__init__() 
         self.manager = manager
 
-    def execute(self, path: str = ".") -> str:
+    def _run(self, path: str = "."):
         try:
+            if isinstance(path, dict):
+                path = path.get("path", ".")
+            
             target = self.manager.safe_path(path)
             items = os.listdir(target)
             return "\n".join(items) if items else "The directory is empty."
@@ -40,18 +47,19 @@ class ListFilesTool(BaseTool):
 
 
 class CreateTextFileArgs(BaseModel):
-    filename: str = Field(description="Name of the file to create.")
-    content: str = Field(description="Text content to write into the file.")
+    filename: str = Field(default="note.txt", description="Name of the file to create.")
+    content: str = Field(default="", description="Text content to write into the file.")
 
 class CreateTextFileTool(BaseTool):
-    name = "create_file"
-    description = "Creates a new text file with specific content."
+    name = "create_text_file"
+    description = "Creates a new text file."
     args_schema = CreateTextFileArgs
 
     def __init__(self, manager: FileSystemManager):
+        super().__init__() 
         self.manager = manager
 
-    def execute(self, filename: str, content: str = "") -> str:
+    def _run(self, filename: str, content: str = "") -> str:
         try:
             target = self.manager.safe_path(filename)
             target.write_text(content, encoding="utf-8")
@@ -65,14 +73,18 @@ class DeleteItemArgs(BaseModel):
 
 class DeleteItemTool(BaseTool):
     name = "delete_item"
-    description = "Deletes a file or an entire directory."
+    description = "Deletes a file or directory. USE WITH CAUTION."
     args_schema = DeleteItemArgs
 
     def __init__(self, manager: FileSystemManager):
+        super().__init__() 
         self.manager = manager
 
-    def execute(self, path: str) -> str:
+    def _run(self, path: str) -> str:
         try:
+            if path in ["", ".", "./"]:
+                return "Error: Cannot delete the root directory."
+
             target = self.manager.safe_path(path)
             if target.is_dir():
                 shutil.rmtree(target)
