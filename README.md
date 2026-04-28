@@ -1,6 +1,6 @@
 # Foldy AI Agent
 
-![Foldy Demo](public/demo.png)
+![Foldy Demo](public/demo.gif)
 
 ## Overview
 
