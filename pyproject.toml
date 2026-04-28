@@ -19,5 +19,8 @@ dependencies = [
     "typer>=0.25.0",
     "uvicorn>=0.46.0",
 ]
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [project.scripts]
 foldy = "src.cli.main:app"
